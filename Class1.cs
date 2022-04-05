@@ -24,6 +24,12 @@ namespace expensereport_csharp
     //DS - Could be static
     public class ExpenseReport
     {
+        private readonly IReportScribe _reportScribe;
+
+        public ExpenseReport():this(new ConsoleReportScribe()) {}
+
+        private ExpenseReport(IReportScribe reportScribe) => _reportScribe = reportScribe;
+
         //DS - Could be static
         public void PrintReport(List<Expense> expenses)
         {
@@ -33,7 +39,7 @@ namespace expensereport_csharp
 
             //DS - Hard coupling to specific report output
             //DS - Direct use of DateTime
-            Console.WriteLine("Expenses " + DateTime.Now);
+            _reportScribe.WriteLine("Expenses " + DateTime.Now);
 
             //DS - type behavior spread over 3 sections
             foreach (Expense expense in expenses)
@@ -68,13 +74,26 @@ namespace expensereport_csharp
                         : " ";
 
                 //DS - coupled writer
-                Console.WriteLine(expenseName + "\t" + expense.amount + "\t" + mealOverExpensesMarker);
+                _reportScribe.WriteLine(expenseName + "\t" + expense.amount + "\t" + mealOverExpensesMarker);
 
                 total += expense.amount;
             }
 
-            Console.WriteLine("Meal expenses: " + mealExpenses);
-            Console.WriteLine("Total expenses: " + total);
+            _reportScribe.WriteLine("Meal expenses: " + mealExpenses);
+            _reportScribe.WriteLine("Total expenses: " + total);
         }
+    }
+
+    internal sealed class ConsoleReportScribe : IReportScribe
+    {
+        public void WriteLine(string msg)
+        {
+            Console.WriteLine(msg);
+        }
+    }
+
+    internal interface IReportScribe
+    {
+        void WriteLine(string msg);
     }
 }
