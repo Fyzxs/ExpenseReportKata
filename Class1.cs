@@ -1,87 +1,171 @@
 ﻿using System;
 using System.Collections.Generic;
-
+using System.Linq;
 //Smell - file and namespace names
 namespace expensereport_csharp
 {
-    //DS - Enum
-    //DS - Naming Convention
-    public enum ExpenseType
-    {
-        //DS - undeclared backing value
-        DINNER, BREAKFAST, CAR_RENTAL
-    }
-    
-    public class Expense
-    {
-        //DS - DTO
-        //DS - Exposed fields
-        //DS - money as int
-        public ExpenseType type;
-        public int amount;
-    }
-
-    //DS - Could be static
     public class ExpenseReport
     {
         private readonly IReportScribe _reportScribe;
+        private readonly VisitorTotal _visitorTotal;
 
-        public ExpenseReport():this(new ConsoleReportScribe()) {}
+        public ExpenseReport() : this(new ConsoleReportScribe(), new VisitorTotal())
+        { }
 
-        private ExpenseReport(IReportScribe reportScribe) => _reportScribe = reportScribe;
-
-        //DS - Could be static
-        public void PrintReport(List<Expense> expenses)
+        public ExpenseReport(IReportScribe reportScribe, VisitorTotal visitorTotal)
         {
-            //DS - money as int
-            int total = 0;
-            int mealExpenses = 0;
+            _reportScribe = reportScribe;
+            _visitorTotal = visitorTotal;
+        }
 
-            //DS - Hard coupling to specific report output
+        public void PrintReport(IEnumerable<ISmartExpense> expenses)
+        {
             //DS - Direct use of DateTime
             _reportScribe.WriteLine("Expenses " + DateTime.Now);
-
-            //DS - type behavior spread over 3 sections
-            foreach (Expense expense in expenses)
+            
+            foreach (ISmartExpense expense in expenses)
             {
-                
-                if (expense.type == ExpenseType.DINNER || expense.type == ExpenseType.BREAKFAST)
-                {
-                    mealExpenses += expense.amount;
-                }
-
-                String expenseName = "";
-                //DS - switch
-                //DS - Hard coding
-                switch (expense.type)
-                {
-                    case ExpenseType.DINNER:
-                        expenseName = "Dinner";
-                        break;
-                    case ExpenseType.BREAKFAST:
-                        expenseName = "Breakfast";
-                        break;
-                    case ExpenseType.CAR_RENTAL:
-                        expenseName = "Car Rental";
-                        break;
-                }
-
-                //DS - Hard Coded ... lots
-                String mealOverExpensesMarker =
-                    expense.type == ExpenseType.DINNER && expense.amount > 5000 ||
-                    expense.type == ExpenseType.BREAKFAST && expense.amount > 1000
-                        ? "X"
-                        : " ";
-
-                //DS - coupled writer
-                _reportScribe.WriteLine(expenseName + "\t" + expense.amount + "\t" + mealOverExpensesMarker);
-
-                total += expense.amount;
+                expense.AddToTotal(_visitorTotal);
+                expense.ReportTo(_reportScribe);
             }
 
-            _reportScribe.WriteLine("Meal expenses: " + mealExpenses);
-            _reportScribe.WriteLine("Total expenses: " + total);
+            _visitorTotal.ReportTo(_reportScribe);
         }
+    }
+
+    public interface ITotal
+    {
+        void Add(TotalType type, int amount);
+        void ReportTo(IReportScribe reportScribe);
+    }
+
+    internal abstract class Total : ITotal
+    {
+        private readonly string _tag;
+        private int _amount;
+
+        protected Total(string tag) : this(tag, 0)
+        {
+        }
+
+        private Total(string tag, int amount)
+        {
+            _tag = tag;
+            _amount = amount;
+        }
+        public virtual void Add(TotalType type, int amount)
+        {
+            _amount += amount;
+        }
+
+        public void ReportTo(IReportScribe reportScribe)
+        {
+            reportScribe.WriteLine($"{_tag} expenses: {_amount}");
+        }
+    }
+
+    internal sealed class MealTotal : Total
+    {
+        public MealTotal() : base("Meal")
+        { }
+
+        public override void Add(TotalType type, int amount)
+        {
+            if (!TotalType.Meal.Equals(type)) return;
+            base.Add(type, amount);
+        }
+    }
+
+    internal sealed class TotalTotal : Total
+    {
+        public TotalTotal() : base("Total")
+        { }
+    }
+
+    public sealed class VisitorTotal : ITotal
+    {
+        private readonly List<ITotal> _totals;
+
+        public VisitorTotal() : this(new List<ITotal> { new MealTotal(), new TotalTotal() })
+        { }
+
+        private VisitorTotal(List<ITotal> totals) => _totals = totals;
+
+        public void Add(TotalType type, int amount)
+        {
+            _totals.ForEach(x => x.Add(type, amount));
+        }
+
+        public void ReportTo(IReportScribe reportScribe)
+        {
+            _totals.ForEach(x => x.ReportTo(reportScribe));
+        }
+    }
+
+    public enum TotalType
+    {
+        Total = 0,
+        Meal = 1,
+        Travel = 2
+    }
+
+
+    internal abstract class SmartExpense:ISmartExpense
+    {
+        private readonly TotalType _totalType;
+        private readonly int _amount;
+        private readonly string _name;
+        private readonly int _maxAllowed;
+
+        protected SmartExpense(TotalType totalType, int amount, string name, int maxAllowed)
+        {
+            _totalType = totalType;
+            _amount = amount;
+            _name = name;
+            _maxAllowed = maxAllowed;
+        }
+        public void AddToTotal(ITotal visitor) => visitor.Add(_totalType, _amount);
+
+        public void ReportTo(IReportScribe reportScribe) => reportScribe.WriteLine(_name + "\t" + _amount + "\t" + OverLimitMarker());
+        private bool IsOverLimit() => _maxAllowed < _amount;
+        private string OverLimitMarker() => IsOverLimit() ? "X" : " ";
+    }
+
+    public interface ISmartExpense
+    {
+        void AddToTotal(ITotal total);
+        void ReportTo(IReportScribe reportScribe);
+    }
+
+    internal abstract class MealExpense : SmartExpense
+    {
+        protected MealExpense(int amount, string name, int maxAllowed) : base(TotalType.Meal, amount, name, maxAllowed)
+        {
+        }
+    }
+    internal abstract class TravelExpense : SmartExpense
+    {
+        protected TravelExpense(int amount, string name) : base(TotalType.Travel, amount, name, int.MaxValue)
+        {
+        }
+    }
+
+    internal sealed class DinnerExpense : MealExpense
+    {
+        public DinnerExpense(int amount):base(amount, "Dinner", 5000)
+        { }
+    }
+
+    internal sealed class BreakfastExpense : MealExpense
+    {
+        public BreakfastExpense(int amount) : base(amount, "Breakfast", 1000)
+        { }
+    }
+
+    internal sealed class CarRentalExpense : TravelExpense
+    {
+        public CarRentalExpense(int amount) : base(amount, "Car Rental")
+        { }
     }
 
     internal sealed class ConsoleReportScribe : IReportScribe
@@ -92,7 +176,7 @@ namespace expensereport_csharp
         }
     }
 
-    internal interface IReportScribe
+    public interface IReportScribe
     {
         void WriteLine(string msg);
     }

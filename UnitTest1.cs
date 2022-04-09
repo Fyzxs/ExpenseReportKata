@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using expensereport_csharp;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -14,15 +13,14 @@ namespace ExpenseReportKata
         public void NoExpenses()
         {
             // ARRANGE
-            StringWriter stringWriter = new StringWriter();
-            Console.SetOut(stringWriter);
-            ExpenseReport subject = new();
+            FakeReportScribe fakeReportScribe = new();
+            ExpenseReport subject = new(fakeReportScribe, new VisitorTotal());
 
             // ACT
-            subject.PrintReport(new List<Expense>());
+            subject.PrintReport(new List<ISmartExpense>());
 
             //ASSERT
-            string[] lines = stringWriter.ToString().Split(Environment.NewLine);
+            string[] lines = fakeReportScribe.Lines.ToArray();
             lines[0].Should().Contain("Expenses " + DateTime.Now);
             lines[1].Should().Be("Meal expenses: 0");
             lines[2].Should().Be("Total expenses: 0");
@@ -31,16 +29,15 @@ namespace ExpenseReportKata
         public void SingleDinnerUnder()
         {
             // ARRANGE
-            StringWriter stringWriter = new StringWriter();
-            Console.SetOut(stringWriter);
-            ExpenseReport subject = new();
-            Expense dinner = new Expense() { amount = 5000, type = ExpenseType.DINNER };
+            FakeReportScribe fakeReportScribe = new();
+            ExpenseReport subject = new(fakeReportScribe, new VisitorTotal());
+            DinnerExpense dinnerExpense = new(5000);
 
             // ACT
-            subject.PrintReport(new List<Expense> { dinner });
+            subject.PrintReport(new List<ISmartExpense> { dinnerExpense });
 
             //ASSERT
-            string[] lines = stringWriter.ToString().Split(Environment.NewLine);
+            string[] lines = fakeReportScribe.Lines.ToArray();
             lines[0].Should().Contain("Expenses " + DateTime.Now);
             lines[1].Should().Be("Dinner\t5000\t ");
             lines[2].Should().Be("Meal expenses: 5000");
@@ -50,16 +47,15 @@ namespace ExpenseReportKata
         public void SingleDinnerOver()
         {
             // ARRANGE
-            StringWriter stringWriter = new StringWriter();
-            Console.SetOut(stringWriter);
-            ExpenseReport subject = new();
-            Expense dinner = new Expense() { amount = 5001, type = ExpenseType.DINNER };
+            FakeReportScribe fakeReportScribe = new();
+            ExpenseReport subject = new(fakeReportScribe, new VisitorTotal());
+            DinnerExpense dinnerExpense = new(5001);
 
             // ACT
-            subject.PrintReport(new List<Expense> { dinner });
+            subject.PrintReport(new List<ISmartExpense> { dinnerExpense });
 
             //ASSERT
-            string[] lines = stringWriter.ToString().Split(Environment.NewLine);
+            string[] lines = fakeReportScribe.Lines.ToArray();
             lines[0].Should().Contain("Expenses " + DateTime.Now);
             lines[1].Should().Be("Dinner\t5001\tX");
             lines[2].Should().Be("Meal expenses: 5001");
@@ -69,24 +65,29 @@ namespace ExpenseReportKata
         public void AllWithBreakfastOver()
         {
             // ARRANGE
-            StringWriter stringWriter = new StringWriter();
-            Console.SetOut(stringWriter);
-            ExpenseReport subject = new();
-            Expense bfast = new Expense() { amount = 1001, type = ExpenseType.BREAKFAST };
-            Expense dinner = new Expense() { amount = 5000, type = ExpenseType.DINNER };
-            Expense car = new Expense() { amount = 2000, type = ExpenseType.CAR_RENTAL };
+            FakeReportScribe fakeReportScribe = new();
+            ExpenseReport subject = new(fakeReportScribe, new VisitorTotal());
+            BreakfastExpense breakfastExpense = new(1001);
+            DinnerExpense dinnerExpense = new(5000);
+            CarRentalExpense carRentalExpense = new(2000);
 
             // ACT
-            subject.PrintReport(new List<Expense> { dinner, bfast, car });
+            subject.PrintReport(new List<ISmartExpense> { dinnerExpense, breakfastExpense, carRentalExpense });
 
             //ASSERT
-            string[] lines = stringWriter.ToString().Split(Environment.NewLine);
+            string[] lines = fakeReportScribe.Lines.ToArray();
             lines[0].Should().Contain("Expenses " + DateTime.Now);
             lines[1].Should().Be("Dinner\t5000\t ");
             lines[2].Should().Be("Breakfast\t1001\tX");
             lines[3].Should().Be("Car Rental\t2000\t ");
             lines[4].Should().Be("Meal expenses: 6001");
             lines[5].Should().Be("Total expenses: 8001");
+        }
+
+        private class FakeReportScribe : IReportScribe
+        {
+            public readonly List<string> Lines = new();
+            public void WriteLine(string msg) => Lines.Add(msg);
         }
     }
 }
