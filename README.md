@@ -1,1 +1,1 @@
-Refactor of https://github.com/christianhujer/expensereport for post on quinngil.com
+Refactor of https://github.com/christianhujer/expensereport for post on https://quinngil.com
