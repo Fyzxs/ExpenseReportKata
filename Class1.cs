@@ -45,8 +45,7 @@ namespace expensereport_csharp
         private int _amount;
 
         protected Total(string tag) : this(tag, 0)
-        {
-        }
+        { }
 
         private Total(string tag, int amount)
         {
@@ -110,7 +109,7 @@ namespace expensereport_csharp
     }
 
 
-    internal abstract class SmartExpense:ISmartExpense
+    public abstract class SmartExpense:ISmartExpense
     {
         private readonly TotalType _totalType;
         private readonly int _amount;
@@ -137,7 +136,7 @@ namespace expensereport_csharp
         void ReportTo(IReportScribe reportScribe);
     }
 
-    internal abstract class MealExpense : SmartExpense
+    public abstract class MealExpense : SmartExpense
     {
         protected MealExpense(int amount, string name, int maxAllowed) : base(TotalType.Meal, amount, name, maxAllowed)
         {
@@ -166,6 +165,13 @@ namespace expensereport_csharp
     {
         public CarRentalExpense(int amount) : base(amount, "Car Rental")
         { }
+    }
+
+    public class LunchExpense : MealExpense
+    {
+        public LunchExpense(int amount) : base(amount, "Lunch", 2000)
+        {
+        }
     }
 
     internal sealed class ConsoleReportScribe : IReportScribe
